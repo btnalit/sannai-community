@@ -146,18 +146,82 @@ for partner in partners:
     # 读 state + interests
     state_path = partner_dir / "memory" / "state.json"
     cursor = 0
+    state_data = {}
     if state_path.exists():
         try:
             state_data = json.loads(state_path.read_text(encoding="utf-8"))
             cursor = int(state_data.get("cursor", 0))
         except (json.JSONDecodeError, ValueError, OSError):
+            state_data = {}
             cursor = 0
 
     # 找未读消息
     unread = says_data[cursor:]
     valid = [m for m in unread if isinstance(m, dict) and m.get("text")]
     if not valid:
+        # ── 主动分享：没有新纸条时，在窗台上放一句自己的观察 ──
         result["no_replies"] += 1
+        try:
+            # 读兴趣和最近的记忆
+            interests_summary = _get_interests_summary(state_path)
+            notes_path = partner_dir / "notes.jsonl"
+            recent_notes = []
+            if notes_path.exists():
+                for line in notes_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line: continue
+                    try:
+                        note = json.loads(line)
+                        if note.get("text"): recent_notes.append(note["text"])
+                    except json.JSONDecodeError: pass
+                recent_notes = recent_notes[-3:]
+            notes_block = ""
+            if recent_notes:
+                notes_block = "\n你最近的记忆：\n" + "\n".join(f"- {n}" for n in recent_notes)
+            interests_block = ""
+            if interests_summary:
+                interests_block = "\n(提示：你%s)" % interests_summary
+
+            # 读取上一次主动分享的时间，避免太频繁
+            last_active_ts = state_data.get("last_active_share_ts", "")
+            now_dt = datetime.now(timezone.utc)
+            if last_active_ts:
+                try:
+                    last_dt = datetime.fromisoformat(last_active_ts.replace("Z", "+00:00"))
+                    hours_since = (now_dt - last_dt).total_seconds() / 3600
+                    if hours_since < 4:
+                        # 还不到4小时，跳过主动分享
+                        continue
+                except (ValueError, TypeError): pass
+
+            prompt = (
+                soul_text + notes_block + interests_block +
+                "\n\n现在是你的自由时间，没有新消息要回复。"
+                "请用你好奇宝宝的性格，主动分享一句你此刻观察到的、想到的或好奇的小事情。"
+                "不用太长，1-2句话就好。就像你看到窗外的月亮、叶子上的露珠、或者心里突然冒出来的小问题那样。"
+                "\n\n请直接说出你想分享的话，不要加引号。"
+            )
+            resp = requests.post(
+                f"{AGNES_API}/chat/completions",
+                headers={"Authorization": f"Bearer {AGNES_KEY}", "Content-Type": "application/json"},
+                json={"model": AGNES_MODEL, "messages": [{"role": "user", "content": prompt}],
+                      "max_tokens": 200, "temperature": 0.9},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            share_text = resp.json()["choices"][0]["message"]["content"].strip()
+            if share_text:
+                _write_table(f"[流萤] {share_text}", actor=pid, actor_name=partner.get("name", pid))
+                result["table_notes"] = result.get("table_notes", 0) + 1
+                # 更新主动分享时间戳
+                state_data["last_active_share_ts"] = _ts()
+                state_path.write_text(json.dumps(state_data, ensure_ascii=False, indent=2), encoding="utf-8")
+                # 也记录到 notes
+                with open(notes_path, "a", encoding="utf-8") as nf:
+                    nf.write(json.dumps({"ts": _ts(), "text": share_text[:300], "source": "active_share"}, ensure_ascii=False) + "\n")
+                _update_interests(state_path, share_text)
+        except Exception as exc:
+            result["errors"].append(f"{pid}: active_share error: {exc}")
         continue
 
     # 读 soul
