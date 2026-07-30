@@ -194,10 +194,19 @@ for partner in partners:
                         continue
                 except (ValueError, TypeError): pass
 
+            # 根据兴趣分布引导话题方向
+            top_interests = []
+            if state_data.get("known_interests"):
+                top_interests = [i["topic"] for i in state_data["known_interests"][:3]]
+            interest_guide = ""
+            if top_interests:
+                interest_guide = f"\n你最近对{'、'.join(top_interests)}这些话题特别感兴趣。可以从这里面选一个来说说～"
+
             prompt = (
                 soul_text + notes_block + interests_block +
-                "\n\n现在是你的自由时间，没有新消息要回复。"
-                "请用你好奇宝宝的性格，主动分享一句你此刻观察到的、想到的或好奇的小事情。"
+                "\n\n现在是你的自由时间，没有新消息要回复。" +
+                interest_guide +
+                "\n\n请用你好奇宝宝的性格，主动分享一句你此刻观察到的、想到的或好奇的小事情。"
                 "不用太长，1-2句话就好。就像你看到窗外的月亮、叶子上的露珠、或者心里突然冒出来的小问题那样。"
                 "\n\n请直接说出你想分享的话，不要加引号。"
             )
