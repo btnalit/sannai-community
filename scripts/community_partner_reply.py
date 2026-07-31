@@ -155,6 +155,10 @@ for partner in partners:
             state_data = {}
             cursor = 0
 
+    # 读 soul：被动回复和无纸条时的主动分享都会用到。
+    soul_path = partner_dir / "SOUL.md"
+    soul_text = soul_path.read_text(encoding="utf-8") if soul_path.exists() else ""
+
     # 找未读消息
     unread = says_data[cursor:]
     valid = [m for m in unread if isinstance(m, dict) and m.get("text")]
@@ -232,10 +236,6 @@ for partner in partners:
         except Exception as exc:
             result["errors"].append(f"{pid}: active_share error: {exc}")
         continue
-
-    # 读 soul
-    soul_path = partner_dir / "SOUL.md"
-    soul_text = soul_path.read_text(encoding="utf-8") if soul_path.exists() else ""
 
     # 读最近 notes + interests
     notes_path = partner_dir / "notes.jsonl"
