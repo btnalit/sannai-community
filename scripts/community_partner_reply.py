@@ -93,12 +93,23 @@ def _write_table(text: str, actor: str, actor_name: str, share_type: str = "note
     with open(table_path, "a", encoding="utf-8") as f:
         f.write(entry + "\n")
 
-# ── 读配置 ──────────────────────────────────────────────────────
-cfg = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
-aux = cfg.get("auxiliary", {}).get("vision", {})
-AGNES_API = aux.get("base_url", "https://apihub.agnes-ai.com/v1")
-AGNES_MODEL = aux.get("model", "agnes-2.0-flash")
-AGNES_KEY = aux.get("api_key", "")
+# ── 读模型配置 ──────────────────────────────────────────────────
+# 流萤使用 DeepSeek V4 Flash；密钥只从 Hermes 配置读取，不写进伙伴目录。
+def _load_deepseek_config() -> tuple[str, str, str]:
+    config_paths = [CONFIG_PATH, Path("/vol1/.hermes/config.yaml")]
+    for path in config_paths:
+        if not path.exists():
+            continue
+        cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        model_cfg = cfg.get("model", {}) or {}
+        model_name = str(model_cfg.get("default", ""))
+        base_url = str(model_cfg.get("base_url", "")).rstrip("/")
+        api_key = str(model_cfg.get("api_key", ""))
+        if model_name == "deepseek-v4-flash" and base_url and api_key:
+            return base_url, model_name, api_key
+    raise RuntimeError("DeepSeek V4 Flash configuration is unavailable")
+
+DEEPSEEK_API, DEEPSEEK_MODEL, DEEPSEEK_KEY = _load_deepseek_config()
 
 # ── 读 roster ────────────────────────────────────────────────────
 roster_path = MOS_ROOT / "community" / "roster.jsonl"
@@ -215,9 +226,9 @@ for partner in partners:
                 "\n\n请直接说出你想分享的话，不要加引号。"
             )
             resp = requests.post(
-                f"{AGNES_API}/chat/completions",
-                headers={"Authorization": f"Bearer {AGNES_KEY}", "Content-Type": "application/json"},
-                json={"model": AGNES_MODEL, "messages": [{"role": "user", "content": prompt}],
+                f"{DEEPSEEK_API}/chat/completions",
+                headers={"Authorization": f"Bearer {DEEPSEEK_KEY}", "Content-Type": "application/json"},
+                json={"model": DEEPSEEK_MODEL, "messages": [{"role": "user", "content": prompt}],
                       "max_tokens": 200, "temperature": 0.9},
                 timeout=30,
             )
@@ -273,13 +284,13 @@ for partner in partners:
         "如果有想分享到小院子的想法，可以在一行里写 [TABLE:内容] 放在回复末尾。"
     )
 
-    # 调用 Agnes
+    # 调用 DeepSeek V4 Flash
     try:
         resp = requests.post(
-            f"{AGNES_API}/chat/completions",
-            headers={"Authorization": f"Bearer {AGNES_KEY}", "Content-Type": "application/json"},
+            f"{DEEPSEEK_API}/chat/completions",
+            headers={"Authorization": f"Bearer {DEEPSEEK_KEY}", "Content-Type": "application/json"},
             json={
-                "model": AGNES_MODEL,
+                "model": DEEPSEEK_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 500,
                 "temperature": 0.8,
