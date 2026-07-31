@@ -140,29 +140,23 @@ def build_track_a_report(community_root: Path) -> dict:
             "cursor": cursor,
         })
 
-    # Cron health check: look at the last cron job output
-    cron_healthy = True
+    # Cron health: 流萤使用系统 crontab，输出为 JSON Lines 日志。
+    cron_healthy = False
     cron_last_run = ""
     cron_errors = 0
-    # Check if there's a cron output directory
     cron_dir = root.parent.parent / "cron" / "output"
-    if cron_dir.exists():
-        # Find most recent community_partner_reply output
-        latest = None
-        for f in cron_dir.glob("*.json"):
-            if "community_partner_reply" in f.name or "partner_reply" in f.name:
-                mtime = f.stat().st_mtime
-                if latest is None or mtime > latest[0]:
-                    latest = (mtime, f)
-        if latest:
-            cron_last_run = datetime.fromtimestamp(latest[0], tz=timezone.utc).isoformat()
-            try:
-                cron_output = json.loads(latest[1].read_text(encoding="utf-8"))
-                if cron_output.get("errors"):
-                    cron_healthy = False
-                    cron_errors = len(cron_output.get("errors"))
-            except (json.JSONDecodeError, OSError):
-                pass
+    cron_log = cron_dir / "liuying_cron.log"
+    if cron_log.exists():
+        cron_last_run = datetime.fromtimestamp(cron_log.stat().st_mtime, tz=timezone.utc).isoformat()
+        try:
+            lines = [line for line in cron_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+            latest_output = json.loads(lines[-1]) if lines else {}
+            cron_errors = len(latest_output.get("errors", []) or [])
+            last_run = datetime.fromtimestamp(cron_log.stat().st_mtime, tz=timezone.utc)
+            stale = (now - last_run).total_seconds() > 2 * 3600
+            cron_healthy = not cron_errors and not stale
+        except (json.JSONDecodeError, OSError, IndexError):
+            cron_errors = 1
 
     return {
         "schema_version": TRACK_A_SCHEMA_VERSION,
