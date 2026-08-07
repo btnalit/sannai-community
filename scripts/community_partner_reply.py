@@ -192,7 +192,7 @@ for partner in partners:
                 recent_notes = recent_notes[-3:]
             notes_block = ""
             if recent_notes:
-                notes_block = "\n你最近的记忆：\n" + "\n".join(f"- {n}" for n in recent_notes)
+                notes_block = "\n你最近说过的话（这些已经说过了，别再重复同样的内容）：\n" + "\n".join(f"- {n}" for n in recent_notes)
             interests_block = ""
             if interests_summary:
                 interests_block = "\n(提示：你%s)" % interests_summary
@@ -224,6 +224,7 @@ for partner in partners:
                 "\n\n请用你好奇宝宝的性格，主动分享一句你此刻观察到的、想到的或好奇的小事情。"
                 "不用太长，1-2句话就好。就像你看到窗外的月亮、叶子上的露珠、或者心里突然冒出来的小问题那样。"
                 "\n\n请直接说出你想分享的话，不要加引号。"
+                "\n\n⚠️ 注意：上面列出的'你最近说过的话'，你已经说过了——请务必换一个新角度、新事物、新比喻，不要重复或改写它们。"
             )
             resp = requests.post(
                 f"{DEEPSEEK_API}/chat/completions",
