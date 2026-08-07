@@ -366,16 +366,17 @@ for partner in partners:
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(json.dumps(new_state, ensure_ascii=False, indent=2), encoding="utf-8")
 
-# Only output when there's something to report
+# 无论有无活动都输出一行，保证 cron log 反映真实运行时间。
+# （否则流萤每4小时才主动分享一次，安静时段脚本零输出，
+#   monitor 会把 log 的旧 mtime 误判成 cron 不健康。）
 has_activity = (result.get("replies_written", 0) > 0 or
                 result.get("table_notes", 0) > 0 or
                 result.get("interests_updated", 0) > 0 or
                 result.get("errors"))
-if has_activity:
-    # Clean up for output — remove extra fields if zero
-    for k in ("table_notes", "interests_updated"):
-        if result.get(k, 0) == 0:
-            result[k] = 0
-    print(json.dumps(result, ensure_ascii=False))
-    if result.get("errors"):
-        sys.exit(2)
+if not has_activity:
+    result["no_activity"] = True
+for k in ("table_notes", "interests_updated"):
+    result.setdefault(k, 0)
+print(json.dumps(result, ensure_ascii=False))
+if result.get("errors"):
+    sys.exit(2)
