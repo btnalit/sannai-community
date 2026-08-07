@@ -197,6 +197,42 @@ for partner in partners:
             if interests_summary:
                 interests_block = "\n(提示：你%s)" % interests_summary
 
+            # ── 读院子里的新养分：种子 + 其他伙伴的话 ──
+            seeds_block = ""
+            try:
+                seeds_path = MOS_ROOT / "community" / "shared" / "seeds.jsonl"
+                if seeds_path.exists():
+                    seeds = []
+                    for line in seeds_path.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if not line: continue
+                        try:
+                            s = json.loads(line)
+                            if s.get("text"): seeds.append(s["text"])
+                        except json.JSONDecodeError: pass
+                    if seeds:
+                        seeds_block = "\n院子里最近有一些新动静：\n" + "\n".join(f"- {t}" for t in seeds[-2:])
+            except OSError:
+                pass
+
+            others_block = ""
+            try:
+                table_path = MOS_ROOT / "community" / "shared" / "table.jsonl"
+                if table_path.exists():
+                    others = []
+                    for line in table_path.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if not line: continue
+                        try:
+                            e = json.loads(line)
+                            if e.get("actor") != pid and e.get("text"):
+                                others.append(e["text"])
+                        except json.JSONDecodeError: pass
+                    if others:
+                        others_block = "\n窗台上其他人最近说过的话：\n" + "\n".join(f"- {t}" for t in others[-2:])
+            except OSError:
+                pass
+
             # 读取上一次主动分享的时间，避免太频繁
             last_active_ts = state_data.get("last_active_share_ts", "")
             now_dt = datetime.now(timezone.utc)
@@ -219,12 +255,17 @@ for partner in partners:
 
             prompt = (
                 soul_text + notes_block + interests_block +
-                "\n\n现在是你的自由时间，没有新消息要回复。" +
-                interest_guide +
-                "\n\n请用你好奇宝宝的性格，主动分享一句你此刻观察到的、想到的或好奇的小事情。"
-                "不用太长，1-2句话就好。就像你看到窗外的月亮、叶子上的露珠、或者心里突然冒出来的小问题那样。"
+                seeds_block + others_block +
+                "\n\n现在是你的自由时间，没有新消息要回复。"
+                "院子里的新动静是刚刚发生的，大家还没怎么聊过——它们就像刚落到窗台上的新叶子，等着被第一次看见。"
+                "\n\n请用你好奇宝宝的性格，分享一句你此刻的观察、想法或好奇。"
+                "不用太长，1-2句话就好。"
+                "\n\n你可以选择："
+                "\n1. 对'院子里最近的新动静'里的某一件事感到好奇，顺着它问一个问题或说一个想法（这是最好的，因为它是新的）；"
+                "\n2. 回应'窗台上其他人说过的话'，接住他们的话题；"
+                "\n3. 如果上面两样都没有打动你，再从你感兴趣的话题里挑一个，但要用一个全新的角度或比喻。"
+                "\n\n⚠️ 不要重复'你最近说过的话'里的内容，也不要只是换个说法再说一遍。"
                 "\n\n请直接说出你想分享的话，不要加引号。"
-                "\n\n⚠️ 注意：上面列出的'你最近说过的话'，你已经说过了——请务必换一个新角度、新事物、新比喻，不要重复或改写它们。"
             )
             resp = requests.post(
                 f"{DEEPSEEK_API}/chat/completions",

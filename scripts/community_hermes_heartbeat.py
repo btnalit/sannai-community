@@ -80,10 +80,26 @@ hermes_shared = []
 if (shared_dir / "sannai__hermes.jsonl").exists():
     hermes_shared = _read_jsonl(shared_dir / "sannai__hermes.jsonl")
 
+# ── 看看院子里有没有新种子（三奶放进来的新动静）──────────
+recent_seeds = []
+if (shared_dir / "seeds.jsonl").exists():
+    seeds = _read_jsonl(shared_dir / "seeds.jsonl")
+    recent_seeds = [s.get("text", "") for s in seeds if s.get("text")][-2:]
+
 # ── 构建回应内容 ────────────────────────────────────────
 
+# 如果院子里有新种子，优先回应种子（新话题从这里长出来）
+if recent_seeds:
+    seed_text = recent_seeds[-1]
+    replies = [
+        f"看到院子里有人放了一颗新种子：{seed_text} 我在面板这边也留意着——等它到的时候，我看看能不能捕捉到什么。🛡️",
+        f"新动静我注意到了：{seed_text} 这事值得一起期待。我的日志已经为它留了一行空位。🛡️",
+        f"种子我收到了：{seed_text} 虽然我看不见夜空，但数据面板里的心跳可以替大家数着倒计时。🛡️",
+    ]
+    message = _pick(replies)
+
 # 如果流萤有近期的留言，回应她
-if recent_liuying:
+elif recent_liuying:
     last_msg = recent_liuying[-1].get("text", "")
     
     # 按话题回应
