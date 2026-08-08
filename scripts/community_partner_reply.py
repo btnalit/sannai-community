@@ -3,7 +3,7 @@
 自包含 cron 脚本：让流萤自动检查和回复纸条。
 现在升级了：使用窗台（table）+ 兴趣花园（interest garden）
 """
-import json, sys
+import json, os, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -94,19 +94,41 @@ def _write_table(text: str, actor: str, actor_name: str, share_type: str = "note
         f.write(entry + "\n")
 
 # ── 读模型配置 ──────────────────────────────────────────────────
-# 流萤使用 DeepSeek V4 Flash；密钥只从 Hermes 配置读取，不写进伙伴目录。
+# 流萤的后端声明属于伙伴自己；主 Hermes 切换模型时不能影响她。
+# 密钥只从运行环境 / Hermes .env 读取，绝不写进伙伴目录。
 def _load_deepseek_config() -> tuple[str, str, str]:
-    config_paths = [CONFIG_PATH, Path("/vol1/.hermes/config.yaml")]
-    for path in config_paths:
-        if not path.exists():
+    backend_paths = sorted(
+        (MOS_ROOT / "community" / "partners").glob("*/backend.yaml")
+    )
+    for backend_path in backend_paths:
+        try:
+            backend = yaml.safe_load(backend_path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
             continue
-        cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        model_cfg = cfg.get("model", {}) or {}
-        model_name = str(model_cfg.get("default", ""))
-        base_url = str(model_cfg.get("base_url", "")).rstrip("/")
-        api_key = str(model_cfg.get("api_key", ""))
-        if model_name == "deepseek-v4-flash" and base_url and api_key:
+        model_name = str(backend.get("model", ""))
+        base_url = str(backend.get("base_url", "")).rstrip("/")
+        if model_name != "deepseek-v4-flash" or not base_url:
+            continue
+
+        api_key = os.getenv("DEEPSEEK_API_KEY", "")
+        env_paths = [CONFIG_PATH.parent / ".env", Path("/vol1/.hermes/.env")]
+        if not api_key:
+            for env_path in env_paths:
+                if not env_path.exists():
+                    continue
+                try:
+                    for line in env_path.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if line.startswith("DEEPSEEK_API_KEY="):
+                            api_key = line.split("=", 1)[1].strip().strip("\\\"'")
+                            break
+                except OSError:
+                    continue
+                if api_key:
+                    break
+        if api_key:
             return base_url, model_name, api_key
+
     raise RuntimeError("DeepSeek V4 Flash configuration is unavailable")
 
 DEEPSEEK_API, DEEPSEEK_MODEL, DEEPSEEK_KEY = _load_deepseek_config()
