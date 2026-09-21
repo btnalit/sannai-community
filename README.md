@@ -26,7 +26,7 @@ loop.
 - `scripts/community_partner_reply.py` — self-contained cron script that
   drives one embedded partner's reply loop against a real model backend
   (currently hardcoded to an Agnes-compatible endpoint and to
-  `/vol1/.hermes/profiles/sannai/memory-os`).
+  `/root/.hermes/profiles/sannai/memory-os`).
 
 ## Known implementation gaps (carried over as-is from extraction)
 

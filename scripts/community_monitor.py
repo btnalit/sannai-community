@@ -182,7 +182,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Track A Community Monitor")
     parser.add_argument(
         "--community-root",
-        default="/vol1/.hermes/profiles/sannai/memory-os/community",
+        default="/root/.hermes/profiles/sannai/memory-os/community",
         help="Path to community root directory",
     )
     parser.add_argument("--json", action="store_true", help="Output raw JSON")

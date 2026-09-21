@@ -7,7 +7,7 @@ import json, os, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-MOS_ROOT = Path("/vol1/.hermes/profiles/sannai/memory-os")
+MOS_ROOT = Path("/root/.hermes/profiles/sannai/memory-os")
 CONFIG_PATH = MOS_ROOT.parent / "config.yaml"
 
 def _ts() -> str:
@@ -110,18 +110,27 @@ def _load_deepseek_config() -> tuple[str, str, str]:
         if model_name != "deepseek-v4-flash" or not base_url:
             continue
 
-        api_key = os.getenv("DEEPSEEK_API_KEY", "")
-        env_paths = [CONFIG_PATH.parent / ".env", Path("/vol1/.hermes/.env")]
+        # SenseNova hosts use SENSENOVA_API_KEY; keep the backend's
+        # credential namespace separate from the model name.
+        key_names = ["SENSENOVA_API_KEY"] if "sensenova.cn" in base_url else ["DEEPSEEK_API_KEY"]
+        api_key = next((os.getenv(name, "") for name in key_names if os.getenv(name, "")), "")
+        env_paths = [
+            CONFIG_PATH.parent / ".env",
+            Path("/root/.hermes/profiles/sannai/.env"),
+            Path("/root/.hermes/.env"),
+        ]
         if not api_key:
             for env_path in env_paths:
                 if not env_path.exists():
                     continue
                 try:
+                    values = {}
                     for line in env_path.read_text(encoding="utf-8").splitlines():
                         line = line.strip()
-                        if line.startswith("DEEPSEEK_API_KEY="):
-                            api_key = line.split("=", 1)[1].strip().strip("\\\"'")
-                            break
+                        for key_name in key_names:
+                            if line.startswith(key_name + "="):
+                                values[key_name] = line.split("=", 1)[1].strip().strip("\\\"'")
+                    api_key = next((values[name] for name in key_names if values.get(name)), "")
                 except OSError:
                     continue
                 if api_key:
