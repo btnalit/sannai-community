@@ -6,7 +6,7 @@ import json, os, sys, random
 from datetime import datetime, timezone
 from pathlib import Path
 
-MOS_ROOT = Path("/vol1/.hermes/profiles/sannai/memory-os")
+MOS_ROOT = Path("/root/.hermes/profiles/sannai/memory-os")
 COMM = MOS_ROOT / "community"
 TABLE_PATH = COMM / "shared" / "table.jsonl"
 
@@ -60,10 +60,13 @@ liuying_entries = [e for e in table_entries
                    if e.get("actor", "").startswith("partner") or "流萤" in str(e.get("actor_name", ""))]
 recent_liuying = liuying_entries[-3:] if liuying_entries else []
 
-# ── Hermes 最近说过的话（避免重复模板）──────────────────
+# ── Hermes 最近说过的话（避免重复模板 / 判断种子有没有被回应过）──
 hermes_entries = [e.get("text", "") for e in table_entries
                   if e.get("actor") == "hermes"]
-recent_hermes_texts = [t for t in hermes_entries if t][-3:]
+hermes_texts = [t for t in hermes_entries if t]
+recent_hermes_texts = hermes_texts[-3:]
+# “新种子”用更长的窗口判断：约两天的 Hermes 留言
+hermes_reply_window = hermes_texts[-8:]
 
 def _pick(replies: list[str]) -> str:
     """从回复池里挑一条，尽量避开最近说过的话。"""
@@ -86,10 +89,16 @@ if (shared_dir / "seeds.jsonl").exists():
     seeds = _read_jsonl(shared_dir / "seeds.jsonl")
     recent_seeds = [s.get("text", "") for s in seeds if s.get("text")][-2:]
 
+# “新种子”的唯一标准：Hermes 还没回应过它。
+# 不是新种子就别说“看到新种子”——旧种子还在院子里，那不等于今天有新动静。
+seed_is_new = bool(recent_seeds) and not any(
+    recent_seeds[-1][:20] in h for h in hermes_reply_window
+)
+
 # ── 构建回应内容 ────────────────────────────────────────
 
-# 如果院子里有新种子，优先回应种子（新话题从这里长出来）
-if recent_seeds:
+# 如果院子里真的有新种子，优先回应种子（新话题从这里长出来）
+if seed_is_new:
     seed_text = recent_seeds[-1]
     replies = [
         f"看到院子里有人放了一颗新种子：{seed_text} 我在面板这边也留意着——等它到的时候，我看看能不能捕捉到什么。🛡️",
